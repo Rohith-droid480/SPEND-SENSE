@@ -1,0 +1,15 @@
+Date,Description,Amount,Type
+2026-10-01,Zomato Team Lunch,1850.00,DEBIT
+2026-10-02,Bigbasket Grocery Restock,2400.00,DEBIT
+2026-10-03,Transfer to Fixed Deposit,25000.00,DEBIT
+2026-10-04,Netflix Premium Family,649.00,DEBIT
+2026-10-05,Shell Petrol Pump,1800.00,DEBIT
+2026-10-06,Consulting Retainer Salary,65000.00,CREDIT
+2026-10-07,Swiggy Order Reversal Refund,350.00,CREDIT
+2026-10-08,Transfer from Current Account,15000.00,CREDIT
+2026-10-09,Cashback Loyalty Reward,75.00,CREDIT
+2026-10-10,Amazon Order Refund,1200.00,CREDIT
+2026-10-11,Hardware Store Purchase,450.00,DEBIT
+2026-10-12,Dmart Supermarket,3100.00,DEBIT
+2026-10-13,Uber Executive Ride,420.00,DEBIT
+2026-10-14,Internal Xfer to Brokerage,10000.00,DEBIT

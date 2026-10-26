@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpendSense — Expense Pattern & Anomaly Detector</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Global Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="logo-mark">
+          <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">SpendSense</h1>
+          <span class="brand-subtitle">Expense Pattern & Anomaly Detector</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div id="datasetBadge" class="status-badge badge-neutral">
+          <span class="status-dot"></span>
+          <span id="datasetBadgeText">Checking dataset...</span>
+        </div>
+        <div class="header-dataset-group">
+          <select id="headerDatasetSelect" class="form-select select-compact" title="Switch between bundled example datasets">
+            <option value="sample_transactions.csv">Canonical Sample (16 rows)</option>
+            <option value="everyday_spending.csv">Everyday Spending (29 rows)</option>
+            <option value="outlier_demo.csv">Outlier &amp; Guardrails (22 rows)</option>
+            <option value="mixed_transactions.csv">Mixed &amp; Transfers (14 rows)</option>
+            <option value="edge_case_valid.csv">Edge Cases Valid (8 rows)</option>
+          </select>
+          <button id="btnLoadHeaderDataset" class="btn btn-outline" title="Load selected bundled dataset">
+            Load
+          </button>
+        </div>
+        <button id="btnOpenImport" class="btn btn-primary">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+          </svg>
+          Import CSV
+        </button>
+      </div>
+    </header>
+
+    <!-- Stat Cards Quartet -->
+    <section class="metrics-grid">
+      <!-- 1. Ordinary Expenses -->
+      <div class="metric-card card-expenses">
+        <div class="metric-header">
+          <span class="metric-label">Ordinary Expenses</span>
+          <span class="metric-tag tag-expense">Debits only</span>
+        </div>
+        <div class="metric-value-row">
+          <span id="totalExpensesVal" class="metric-number">₹0.00</span>
+        </div>
+        <div class="metric-footer">
+          <span id="expenseCountLabel" class="metric-detail">0 debit transactions</span>
+          <span class="metric-note">Excludes transfers</span>
+        </div>
+      </div>
+
+      <!-- 2. Total Credits -->
+      <div class="metric-card card-credits">
+        <div class="metric-header">
+          <span class="metric-label">Total Credits</span>
+          <span class="metric-tag tag-credit">Incoming</span>
+        </div>
+        <div class="metric-value-row">
+          <span id="totalCreditsVal" class="metric-number">₹0.00</span>
+        </div>
+        <div class="metric-footer">
+          <span id="creditCountLabel" class="metric-detail">Income &amp; refunds</span>
+          <span class="metric-note">Not netted vs debits</span>
+        </div>
+      </div>
+
+      <!-- 3. Transfers -->
+      <div class="metric-card card-transfers">
+        <div class="metric-header">
+          <span class="metric-label">Account Transfers</span>
+          <span class="metric-tag tag-transfer">Reallocation</span>
+        </div>
+        <div class="metric-value-row">
+          <span id="totalTransfersVal" class="metric-number">₹0.00</span>
+        </div>
+        <div class="metric-footer">
+          <span id="transferCountLabel" class="metric-detail">0 transfers</span>
+          <span class="metric-note">Tracked separately</span>
+        </div>
+      </div>
+
+      <!-- 4. Outlier Screening Summary -->
+      <div class="metric-card card-anomalies" id="outlierMetricCard">
+        <div class="metric-header">
+          <span class="metric-label">Potential Outliers</span>
+          <span id="outlierBadge" class="metric-tag tag-warning">Modified Z &gt; 3.5</span>
+        </div>
+        <div class="metric-value-row">
+          <span id="outlierCountVal" class="metric-number">0</span>
+          <span class="metric-sublabel">Flagged</span>
+        </div>
+        <div class="metric-footer">
+          <span id="outlierSummaryLabel" class="metric-detail">Screened via Raw MAD</span>
+          <span class="metric-note">Descriptive only</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Segmented Navigation Tabs -->
+    <nav class="nav-tabs" role="tablist">
+      <button class="tab-btn active" data-tab="tab-dashboard" role="tab" aria-selected="true">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        Overview
+      </button>
+      <button class="tab-btn" data-tab="tab-transactions" role="tab" aria-selected="false">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+          <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+          <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+        </svg>
+        Transactions <span id="navTxCount" class="badge-pill">0</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-spending" role="tab" aria-selected="false">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>
+        </svg>
+        Spending Analysis
+      </button>
+      <button class="tab-btn" data-tab="tab-outliers" role="tab" aria-selected="false">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+        Anomalies &amp; Outliers <span id="navOutlierCount" class="badge-pill badge-warning-pill">0</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-import" role="tab" aria-selected="false">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/>
+          <line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        CSV Ingestion
+      </button>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="content-container">
+
+      <!-- ================================================================== -->
+      <!-- TAB 1: OVERVIEW DASHBOARD -->
+      <!-- ================================================================== -->
+      <div id="tab-dashboard" class="tab-content active">
+        <!-- Outlier Warning Callout (if any outlier flagged) -->
+        <div id="dashboardOutlierAlert" class="alert-callout alert-warning" style="display: none;">
+          <div class="alert-icon-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div class="alert-body">
+            <div class="alert-title-row">
+              <span class="alert-title">Potential Statistical Outlier Flagged</span>
+              <span class="alert-badge">Score &gt; 3.5</span>
+            </div>
+            <p id="dashboardOutlierText" class="alert-message">A transaction in your records significantly deviates from its category baseline.</p>
+          </div>
+          <button class="btn btn-sm btn-outline-warning" onclick="app.switchTab('tab-outliers')">Inspect Outliers</button>
+        </div>
+
+        <div class="dashboard-grid">
+          <!-- Left Column: Category Breakdown Chart -->
+          <div class="panel card-panel">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title">Expense Distribution</h2>
+                <p class="panel-subtitle">Ordinary debit breakdown by category</p>
+              </div>
+              <span id="categoryCountBadge" class="badge-neutral-pill">0 categories</span>
+            </div>
+
+            <div class="chart-and-legend-row">
+              <div class="donut-chart-container">
+                <svg id="categoryDonutSvg" viewBox="0 0 160 160" class="donut-svg">
+                  <!-- Generated dynamically in app.js -->
+                </svg>
+                <div class="donut-center-text">
+                  <span class="donut-center-label">Total Debits</span>
+                  <span id="donutCenterAmount" class="donut-center-val">₹0</span>
+                </div>
+              </div>
+
+              <div id="categoryBarsList" class="category-bars-list">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Recent Activity & Financial Health -->
+          <div class="panel card-panel">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title">Recent Activity</h2>
+                <p class="panel-subtitle">Latest processed banking records</p>
+              </div>
+              <button class="btn-link" onclick="app.switchTab('tab-transactions')">View All &rarr;</button>
+            </div>
+
+            <div id="recentTransactionsList" class="recent-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Architecture & Integrity Principles Banner -->
+        <div class="methodology-card">
+          <div class="methodology-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <div class="methodology-content">
+            <h3 class="methodology-title">SpendSense Financial Engine Guarantees</h3>
+            <p class="methodology-desc">
+              All amounts are stored as exact <strong>integer paise</strong> ($₹1 = 100$ paise) without IEEE 754 binary floating-point rounding errors. 
+              Imports execute with <strong>atomic dataset replacement</strong> and complete rollback safety. 
+              Ordinary expenses strictly exclude account transfers, refunds are reported separately without netting, 
+              and anomaly screening applies category-specific <strong>Modified Z-scores using raw MAD</strong> with strict sample size guardrails ($N \ge 5$).
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================== -->
+      <!-- TAB 2: TRANSACTIONS TABLE -->
+      <!-- ================================================================== -->
+      <div id="tab-transactions" class="tab-content">
+        <div class="panel card-panel">
+          <div class="panel-header filter-header">
+            <div class="search-box">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input type="text" id="txSearchInput" class="search-input" placeholder="Search transactions by merchant description...">
+            </div>
+
+            <div class="filter-controls">
+              <select id="filterCategory" class="select-control">
+                <option value="ALL">All Categories</option>
+                <!-- Dynamically filled -->
+              </select>
+
+              <select id="filterType" class="select-control">
+                <option value="ALL">All Types</option>
+                <option value="DEBIT">Debits Only</option>
+                <option value="CREDIT">Credits Only</option>
+              </select>
+
+              <select id="sortOrder" class="select-control">
+                <option value="date-desc">Date (Newest first)</option>
+                <option value="date-asc">Date (Oldest first)</option>
+                <option value="amount-desc">Amount (Highest first)</option>
+                <option value="amount-asc">Amount (Lowest first)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Transactions Table -->
+          <div class="table-responsive">
+            <table class="data-table" id="transactionsTable">
+              <thead>
+                <tr>
+                  <th style="width: 80px;">ID</th>
+                  <th style="width: 120px;">Date</th>
+                  <th>Description</th>
+                  <th style="width: 150px;">Category</th>
+                  <th style="width: 110px;">Rule ID</th>
+                  <th style="width: 100px;">Type</th>
+                  <th style="width: 140px; text-align: right;">Amount</th>
+                </tr>
+              </thead>
+              <tbody id="transactionsTbody">
+                <!-- Dynamically generated rows -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-footer">
+            <span id="tableResultsCount">Showing 0 transactions</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================== -->
+      <!-- TAB 3: SPENDING ANALYSIS -->
+      <!-- ================================================================== -->
+      <div id="tab-spending" class="tab-content">
+        <div class="analysis-grid">
+          <!-- Debit Category Breakdown -->
+          <div class="panel card-panel">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title">Category Spending Details</h2>
+                <p class="panel-subtitle">Ordinary debit breakdown sorted by total expenditure</p>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th style="text-align: center;">Transactions</th>
+                    <th style="text-align: right;">Total Amount</th>
+                    <th style="width: 180px;">Share of Expenses</th>
+                  </tr>
+                </thead>
+                <tbody id="spendingCategoriesTbody">
+                  <!-- Dynamically populated -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Right Column: Credits & Transfers Panels -->
+          <div class="side-breakdown-col">
+            <!-- Credits Panel -->
+            <div class="panel card-panel">
+              <div class="panel-header">
+                <div>
+                  <h2 class="panel-title">Credit Inflow Summary</h2>
+                  <p class="panel-subtitle">Incoming deposits, income, and refunds</p>
+                </div>
+              </div>
+              <div id="creditsBreakdownList" class="breakdown-list">
+                <!-- Dynamically populated -->
+              </div>
+              <div class="card-callout-note">
+                Refunds are tracked separately as credits and not netted against debit purchases.
+              </div>
+            </div>
+
+            <!-- Transfers Panel -->
+            <div class="panel card-panel">
+              <div class="panel-header">
+                <div>
+                  <h2 class="panel-title">Transfers Summary</h2>
+                  <p class="panel-subtitle">Reallocations between accounts</p>
+                </div>
+              </div>
+              <div id="transfersBreakdownList" class="breakdown-list">
+                <!-- Dynamically populated -->
+              </div>
+              <div class="card-callout-note">
+                Transfers are excluded from ordinary expenses to avoid distorting living cost metrics.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================== -->
+      <!-- TAB 4: ANOMALIES & POTENTIAL OUTLIERS -->
+      <!-- ================================================================== -->
+      <div id="tab-outliers" class="tab-content">
+        <!-- Outlier Mathematical Context Card -->
+        <div class="math-banner">
+          <div class="math-banner-header">
+            <span class="math-badge">Statistical Algorithm</span>
+            <h3 class="math-title">Category-Specific Modified Z-Score with Raw MAD</h3>
+          </div>
+          <div class="math-formula-box">
+            <code>Modified Z = 0.6745 &times; (Candidate Amount &minus; Category Median) / Raw MAD</code>
+          </div>
+          <p class="math-explanation">
+            Standard deviation is distorted by extreme outliers. SpendSense uses the <strong>median</strong> and <strong>Median Absolute Deviation (MAD)</strong>, 
+            which have a 50% breakdown point. A transaction is flagged if and only if <code>|Modified Z| &gt; 3.5</code>.
+            Results are reported strictly as <strong>potential outliers</strong>, never labeled as fraud.
+          </p>
+        </div>
+
+        <!-- Flagged Outliers Section -->
+        <div class="section-title-row">
+          <h2 class="section-title">Flagged Potential Outliers</h2>
+          <span id="flaggedCountBadge" class="badge-warning-pill">0 flagged</span>
+        </div>
+        <div id="flaggedOutliersContainer" class="outlier-cards-grid">
+          <!-- Dynamically populated -->
+        </div>
+
+        <!-- Guardrail Categories Not Evaluated Section -->
+        <div class="section-title-row" style="margin-top: 32px;">
+          <h2 class="section-title">Categories Not Evaluated (Guardrails)</h2>
+          <span class="badge-neutral-pill">Safe Dispersion Check</span>
+        </div>
+        <div class="panel card-panel">
+          <p class="panel-intro-text">
+            To prevent false alarms and numerical instability, SpendSense enforces two statistical guardrails:
+            categories must contain at least <strong>5 eligible observations</strong> ($N \ge 5$) and have a non-zero MAD ($\text{raw MAD} \ne 0$).
+          </p>
+          <div id="notEvaluatedList" class="guardrails-list">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================== -->
+      <!-- TAB 5: CSV INGESTION / IMPORT -->
+      <!-- ================================================================== -->
+      <div id="tab-import" class="tab-content">
+        <div class="import-layout">
+          <!-- Left: Upload Zone -->
+          <div class="panel card-panel">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title">Import Transaction CSV</h2>
+                <p class="panel-subtitle">Upload your bank statement export for validation &amp; analysis</p>
+              </div>
+            </div>
+
+            <!-- Drag and Drop Zone -->
+            <div id="dropZone" class="drop-zone">
+              <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+              </svg>
+              <h3 class="drop-prompt">Drag &amp; drop statement CSV file here</h3>
+              <p class="drop-sub">or click to browse from your computer</p>
+              <input type="file" id="fileInput" accept=".csv,text/csv" class="file-input-hidden">
+              <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Select CSV File</button>
+            </div>
+
+            <!-- File Selected Preview & Action Bar -->
+            <div id="fileSelectedBox" class="file-selected-box" style="display: none;">
+              <div class="file-info-row">
+                <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                <div class="file-meta">
+                  <span id="selectedFileName" class="file-name">statement.csv</span>
+                  <span id="selectedFileSize" class="file-size">1.2 KB</span>
+                </div>
+                <button id="btnCancelFile" class="btn btn-sm btn-ghost">&times; Remove</button>
+              </div>
+
+              <div class="atomic-warning-box">
+                <svg class="warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span><strong>Atomic Dataset Replacement:</strong> Ingesting this file will atomically swap the current database with the validated records. If the import fails or has zero valid rows, your existing database is preserved intact.</span>
+              </div>
+
+              <div class="action-buttons-row">
+                <button id="btnExecuteImport" class="btn btn-success btn-lg">
+                  <span id="importSpinner" class="spinner" style="display: none;"></span>
+                  Confirm &amp; Ingest Transactions
+                </button>
+              </div>
+            </div>
+
+            <!-- Import Result Status Callout -->
+            <div id="importResultAlert" class="alert-callout" style="display: none; margin-top: 20px;">
+              <div class="alert-icon-box" id="importResultIcon"></div>
+              <div class="alert-body">
+                <h4 id="importResultTitle" class="alert-title">Import Result</h4>
+                <p id="importResultMessage" class="alert-message"></p>
+                <!-- Diagnostic Rejection Table (if rows were rejected) -->
+                <div id="rejectionsDetailBox" style="display: none; margin-top: 12px;">
+                  <h5 class="rejections-title">Rejected Rows Breakdown:</h5>
+                  <div class="table-responsive">
+                    <table class="data-table data-table-sm">
+                      <thead>
+                        <tr>
+                          <th>Record #</th>
+                          <th>Line #</th>
+                          <th>Rejection Reason</th>
+                        </tr>
+                      </thead>
+                      <tbody id="rejectionsTbody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Schema Contract Specification -->
+          <div class="panel card-panel">
+            <div class="panel-header">
+              <h2 class="panel-title">Expected CSV Contract</h2>
+            </div>
+            <p class="schema-intro">The file must have exactly these four header columns:</p>
+            <div class="code-pill">Date,Description,Amount,Type</div>
+
+            <div class="schema-table-wrap">
+              <table class="data-table data-table-sm">
+                <thead>
+                  <tr>
+                    <th>Column</th>
+                    <th>Format</th>
+                    <th>Rules</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>Date</code></td>
+                    <td><code>YYYY-MM-DD</code></td>
+                    <td>Strict ISO calendar date (impossible dates like Feb 30 rejected)</td>
+                  </tr>
+                  <tr>
+                    <td><code>Description</code></td>
+                    <td>Text</td>
+                    <td>Non-empty merchant text; casing preserved</td>
+                  </tr>
+                  <tr>
+                    <td><code>Amount</code></td>
+                    <td>Decimal string</td>
+                    <td>Positive INR decimal with &le; 2 decimal places (no symbols or commas)</td>
+                  </tr>
+                  <tr>
+                    <td><code>Type</code></td>
+                    <td><code>DEBIT</code> / <code>CREDIT</code></td>
+                    <td>Case-normalized transaction direction</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="sample-download-card">
+              <h4>Bundled Synthetic Datasets</h4>
+              <p>Select any verified test file to immediately load and analyze:</p>
+              <div class="example-buttons-stack">
+                <button class="btn btn-sm btn-outline btn-example-load" data-example="sample_transactions.csv" title="Standard 16 transactions; 1 dining outlier">
+                  <strong>1. Canonical Sample</strong> (16 rows)
+                </button>
+                <button class="btn btn-sm btn-outline btn-example-load" data-example="everyday_spending.csv" title="Monthly spending spread across 4 categories with 2 fuel outliers">
+                  <strong>2. Everyday Spending</strong> (29 rows)
+                </button>
+                <button class="btn btn-sm btn-outline btn-example-load" data-example="outlier_demo.csv" title="Demonstrates N >= 5 outliers and strict zero-MAD guardrail">
+                  <strong>3. Outlier &amp; Guardrails Demo</strong> (22 rows)
+                </button>
+                <button class="btn btn-sm btn-outline btn-example-load" data-example="mixed_transactions.csv" title="Debits, credits, refunds, and transfers">
+                  <strong>4. Mixed &amp; Transfers</strong> (14 rows)
+                </button>
+                <button class="btn btn-sm btn-outline btn-example-load" data-example="edge_case_valid.csv" title="Exact trailing zeros (.00, .50), leap day (Feb 29)">
+                  <strong>5. Valid Edge Cases</strong> (8 rows)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Global Footer -->
+    <footer class="app-footer">
+      <div class="footer-left">
+        <span>SpendSense 1.0 &bull; Standard-Library Python &bull; SQLite Relational Persistence</span>
+      </div>
+      <div class="footer-right">
+        <span>Protected 127.0.0.1 Local Execution &bull; Zero External Network Calls</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
